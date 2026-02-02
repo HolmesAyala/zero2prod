@@ -1,11 +1,13 @@
-use std::net::TcpListener;
+use once_cell::sync::Lazy;
+use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::net::TcpListener;
 use uuid::Uuid;
-use zero2prod::{configuration, startup::start_server};
+use zero2prod::{configuration, startup::start_server, telemetry};
 
 pub struct TestApp {
     pub address: String,
-    pub db_connection_pool: PgPool
+    pub db_connection_pool: PgPool,
 }
 
 #[tokio::test]
@@ -30,7 +32,7 @@ async fn subscribe_success() {
 
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
     let connection_string = configuration.database.connection_string();
-    let mut db_connection = PgConnection::connect(&connection_string)
+    let mut db_connection = PgConnection::connect(&connection_string.expose_secret())
         .await
         .expect("Failed to connect to database");
 
@@ -87,42 +89,67 @@ async fn given_missing_fields_then_subscribe_returns_400() {
     }
 }
 
+static TRACING: Lazy<()> = Lazy::new(|| {
+    let default_filter_level = "info".to_string();
+    let subscriber_name = "test".to_string();
+
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = telemetry::get_tracing_subscriber(
+            subscriber_name,
+            default_filter_level,
+            std::io::stdout,
+        );
+        telemetry::init_tracing_subscriber(subscriber);
+    } else {
+        let subscriber =
+            telemetry::get_tracing_subscriber(subscriber_name, default_filter_level, std::io::sink);
+        telemetry::init_tracing_subscriber(subscriber);
+    }
+});
+
 async fn spawn_server() -> TestApp {
+    Lazy::force(&TRACING);
+
     let tcp_listener = TcpListener::bind("127.0.0.1:0").expect("Failend to bind tcp listener");
     let address = format!("http://{}", tcp_listener.local_addr().unwrap().to_string());
 
-    let mut configuration = configuration::get_configuration()
-        .expect("Failed to read configuration");
+    let mut configuration =
+        configuration::get_configuration().expect("Failed to read configuration");
     configuration.database.database_name = Uuid::new_v4().to_string();
 
     let db_connection_pool = configure_database(&configuration.database).await;
 
     println!("# Address assigned: {}", address);
 
-    let server = start_server(tcp_listener, db_connection_pool.clone())
-        .expect("Unable to start the server");
+    let server =
+        start_server(tcp_listener, db_connection_pool.clone()).expect("Unable to start the server");
 
     let _ = tokio::spawn(server);
 
     TestApp {
         address,
-        db_connection_pool
+        db_connection_pool,
     }
 }
 
 async fn configure_database(database_settings: &configuration::DatabaseSettings) -> PgPool {
-    let mut db_connection = PgConnection::connect(&database_settings.connection_string_without_db())
-        .await
-        .expect("Failed to connect to database");
+    let mut db_connection = PgConnection::connect(
+        &database_settings
+            .connection_string_without_db()
+            .expose_secret(),
+    )
+    .await
+    .expect("Failed to connect to database");
 
     db_connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, database_settings.database_name).as_str())
         .await
         .expect("Failed to create database");
 
-    let db_connection_pool = PgPool::connect(&database_settings.connection_string())
-        .await
-        .expect("Failed to connect to database");
+    let db_connection_pool =
+        PgPool::connect(&database_settings.connection_string().expose_secret())
+            .await
+            .expect("Failed to connect to database");
 
     sqlx::migrate!("./migrations")
         .run(&db_connection_pool)

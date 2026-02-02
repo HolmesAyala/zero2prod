@@ -1,0 +1,16 @@
+
+GET http://127.0.0.1:8000/health-check
+
+###
+
+POST http://127.0.0.1:8000/subscriptions
+Content-Type: application/x-www-form-urlencoded
+
+name=le%20guin&email=ursula_le_guin%40gmail.com
+
+###
+
+POST http://127.0.0.1:8000/subscriptions
+Content-Type: application/x-www-form-urlencoded
+
+name=Holmes%20Ayala&email=holmesayala%40gmail.com
