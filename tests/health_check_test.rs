@@ -110,7 +110,7 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 async fn spawn_server() -> TestApp {
     Lazy::force(&TRACING);
 
-    let tcp_listener = TcpListener::bind("127.0.0.1:0").expect("Failend to bind tcp listener");
+    let tcp_listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind tcp listener");
     let address = format!("http://{}", tcp_listener.local_addr().unwrap().to_string());
 
     let mut configuration =

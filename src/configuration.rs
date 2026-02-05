@@ -3,7 +3,7 @@ use secrecy::{ExposeSecret, SecretString};
 #[derive(serde::Deserialize)]
 pub struct Settings {
     pub database: DatabaseSettings,
-    pub application_port: u16,
+    pub application: ApplicationSettings,
 }
 
 #[derive(serde::Deserialize)]
@@ -13,6 +13,12 @@ pub struct DatabaseSettings {
     pub port: u16,
     pub host: String,
     pub database_name: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ApplicationSettings {
+    pub port: u16,
+    pub host: String,
 }
 
 impl DatabaseSettings {
@@ -38,9 +44,67 @@ impl DatabaseSettings {
     }
 }
 
+impl ApplicationSettings {
+    pub fn address(&self) -> String {
+        format!("{}:{}", self.host, self.port)
+    }
+}
+
+pub enum Environment {
+    Local,
+    Production,
+}
+
+impl Environment {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Environment::Local => "local",
+            Environment::Production => "production",
+        }
+    }
+}
+
+impl TryFrom<String> for Environment {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.to_lowercase().as_str() {
+            "local" => Ok(Self::Local),
+            "production" => Ok(Self::Production),
+            other => Err(format!(
+                "{} is not a supported environment. Use either `local` or `production`.",
+                other
+            )),
+        }
+    }
+}
+
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
+    let environment: Environment = get_environment();
+    get_settings(environment)
+}
+
+fn get_environment() -> Environment {
+    std::env::var("APP_ENVIRONMENT")
+        .unwrap_or_else(|_| "local".into())
+        .try_into()
+        .expect("Failed to parse APP_ENVIRONMENT")
+}
+
+fn get_settings(environment: Environment) -> Result<Settings, config::ConfigError> {
+    let current_dir_path =
+        std::env::current_dir().expect("Failed to determine the current directory path");
+    let configuration_directory = current_dir_path.join("configuration");
+
+    let environment_config_filename = format!("{}.yaml", environment.as_str());
+
+    let base_configuration_file = config::File::from(configuration_directory.join("base.yaml"));
+    let environemnt_config_file =
+        config::File::from(configuration_directory.join(environment_config_filename));
+
     let settings = config::Config::builder()
-        .add_source(config::File::with_name("configuration"))
+        .add_source(base_configuration_file)
+        .add_source(environemnt_config_file)
         .build()?;
 
     settings.try_deserialize::<Settings>()
