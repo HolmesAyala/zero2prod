@@ -13,7 +13,7 @@ pub struct TestApp {
 #[tokio::test]
 async fn healt_check_success() {
     let test_app = spawn_server().await;
-    let service_url = format!("{}/health-check", test_app.address);
+    let service_url = format!("{}/health_check", test_app.address);
     let client = reqwest::Client::new();
 
     let response = client

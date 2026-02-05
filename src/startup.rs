@@ -14,7 +14,7 @@ pub fn start_server(
     let http_server = HttpServer::new(move || {
         App::new()
             .wrap(TracingLogger::default())
-            .route("/health-check", web::get().to(health_check_controller))
+            .route("/health_check", web::get().to(health_check_controller))
             .route("/subscriptions", web::post().to(subscribe_controller))
             .app_data(db_connection_pool_data.clone())
     })
