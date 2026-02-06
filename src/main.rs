@@ -1,4 +1,3 @@
-use secrecy::ExposeSecret;
 use sqlx::PgPool;
 use std::net::TcpListener;
 use zero2prod::{
@@ -14,9 +13,7 @@ async fn main() -> Result<(), std::io::Error> {
     init_tracing_subscriber(tracing_subscriber);
 
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
-    let db_connection_pool =
-        PgPool::connect_lazy(&configuration.database.connection_string().expose_secret())
-            .expect("Failed to connect to the database");
+    let db_connection_pool = PgPool::connect_lazy_with(configuration.database.with_db());
 
     let tcp_listener = TcpListener::bind(configuration.application.address())
         .expect("Failed to bind tcp listener");

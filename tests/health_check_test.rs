@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
@@ -31,8 +30,8 @@ async fn subscribe_success() {
     let test_app = spawn_server().await;
 
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
-    let connection_string = configuration.database.connection_string();
-    let mut db_connection = PgConnection::connect(&connection_string.expose_secret())
+    let pg_connect_options = configuration.database.with_db();
+    let mut db_connection = PgConnection::connect_with(&pg_connect_options)
         .await
         .expect("Failed to connect to database");
 
@@ -133,23 +132,18 @@ async fn spawn_server() -> TestApp {
 }
 
 async fn configure_database(database_settings: &configuration::DatabaseSettings) -> PgPool {
-    let mut db_connection = PgConnection::connect(
-        &database_settings
-            .connection_string_without_db()
-            .expose_secret(),
-    )
-    .await
-    .expect("Failed to connect to database");
+    let mut db_connection = PgConnection::connect_with(&database_settings.without_db())
+        .await
+        .expect("Failed to connect to database");
 
     db_connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, database_settings.database_name).as_str())
         .await
         .expect("Failed to create database");
 
-    let db_connection_pool =
-        PgPool::connect(&database_settings.connection_string().expose_secret())
-            .await
-            .expect("Failed to connect to database");
+    let db_connection_pool = PgPool::connect_with(database_settings.with_db())
+        .await
+        .expect("Failed to connect to database");
 
     sqlx::migrate!("./migrations")
         .run(&db_connection_pool)
