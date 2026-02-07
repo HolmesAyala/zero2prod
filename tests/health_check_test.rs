@@ -88,6 +88,35 @@ async fn given_missing_fields_then_subscribe_returns_400() {
     }
 }
 
+#[tokio::test]
+async fn given_fields_invalid_then_subscribe_returns_400() {
+    let app = spawn_server().await;
+    let service_url = format!("{}/subscriptions", app.address);
+    let http_client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
+        ("name=Ursula&email=", "empty email"),
+        ("name=Ursula&email=definitely-not-an-email", "invalid email"),
+    ];
+
+    for (body, error_description) in test_cases {
+        let response = http_client
+            .post(service_url.clone())
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect(&format!("Unable to perform the request to {}", service_url));
+
+        assert_eq!(
+            response.status().as_u16(),
+            400,
+            "The API did not return 400 Bad Request when the payload was {}",
+            error_description
+        )
+    }
+}
+
 static TRACING: Lazy<()> = Lazy::new(|| {
     let default_filter_level = "info".to_string();
     let subscriber_name = "test".to_string();
