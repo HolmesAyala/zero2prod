@@ -1,13 +1,13 @@
+use crate::configuration::{DatabaseSettings, Settings};
+use crate::email_client::EmailClient;
 use crate::routes::health_check::health_check_controller;
 use crate::routes::subscriptions::subscribe_controller;
 use actix_web::dev::Server;
 use actix_web::{App, HttpServer, web};
-use std::net::TcpListener;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
+use std::net::TcpListener;
 use tracing_actix_web::TracingLogger;
-use crate::configuration::{DatabaseSettings, Settings};
-use crate::email_client::EmailClient;
 
 pub struct Application {
     address: String,
@@ -32,14 +32,20 @@ impl Application {
             timeout,
         );
 
-        let address = format!("{}:{}", configuration.application.host, configuration.application.port);
+        let address = format!(
+            "{}:{}",
+            configuration.application.host, configuration.application.port
+        );
 
         let tcp_listener = TcpListener::bind(&address)?;
         let address_assigned = tcp_listener.local_addr()?;
 
         let server = Application::start_server(tcp_listener, connection_pool, email_client)?;
 
-        Ok(Self { address: address_assigned.to_string(), server })
+        Ok(Self {
+            address: address_assigned.to_string(),
+            server,
+        })
     }
 
     pub fn get_connection_pool(configuration: &DatabaseSettings) -> PgPool {
@@ -49,7 +55,7 @@ impl Application {
     fn start_server(
         tcp_listener: TcpListener,
         db_connection_pool: sqlx::PgPool,
-        email_client: EmailClient
+        email_client: EmailClient,
     ) -> Result<Server, std::io::Error> {
         let db_connection_pool_data = web::Data::new(db_connection_pool);
         let email_client_data = web::Data::new(email_client);
@@ -62,8 +68,8 @@ impl Application {
                 .app_data(db_connection_pool_data.clone())
                 .app_data(email_client_data.clone())
         })
-            .listen(tcp_listener)?
-            .run();
+        .listen(tcp_listener)?
+        .run();
 
         Ok(http_server)
     }
@@ -72,5 +78,7 @@ impl Application {
         self.server.await
     }
 
-    pub fn address(&self) -> &str { &self.address }
+    pub fn address(&self) -> &str {
+        &self.address
+    }
 }

@@ -8,7 +8,10 @@ impl SubscriberEmail {
         if ValidateEmail::validate_email(&value) {
             Ok(Self(value))
         } else {
-            Err(format!("The value provided is not a valid email address. value = {}", value))
+            Err(format!(
+                "The value provided is not a valid email address. value = {}",
+                value
+            ))
         }
     }
 }

@@ -14,7 +14,10 @@ impl SubscriberName {
             .any(|character| invalid_characters.contains(&character));
 
         if is_empty_or_whitespace || is_too_long || contains_invalid_characters {
-            Err(format!("The value is not a valid subscriber name. value = {}", value))
+            Err(format!(
+                "The value is not a valid subscriber name. value = {}",
+                value
+            ))
         } else {
             Ok(Self(value))
         }
@@ -30,7 +33,7 @@ impl AsRef<str> for SubscriberName {
 #[cfg(test)]
 mod tests {
     use crate::domain::SubscriberName;
-    use claims::{assert_ok, assert_err};
+    use claims::{assert_err, assert_ok};
 
     #[test]
     fn given_a_256_grapheme_value_then_it_should_return_ok() {

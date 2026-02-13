@@ -1,8 +1,8 @@
+use zero2prod::application::Application;
 use zero2prod::{
     configuration,
     telemetry::{get_tracing_subscriber, init_tracing_subscriber},
 };
-use zero2prod::application::{Application};
 
 #[tokio::main]
 async fn main() -> Result<(), std::io::Error> {
@@ -11,10 +11,10 @@ async fn main() -> Result<(), std::io::Error> {
     init_tracing_subscriber(tracing_subscriber);
 
     let configuration = configuration::get_configuration().expect("Failed to read configuration");
-    
+
     let http_server = Application::build(configuration).await?;
-    
+
     http_server.run_until_stopped().await?;
-    
+
     Ok(())
 }

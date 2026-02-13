@@ -1,7 +1,7 @@
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use actix_web::{HttpResponse, web};
 use chrono::Utc;
 use uuid::Uuid;
-use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct SubscribeRequestBody {
@@ -41,10 +41,7 @@ pub async fn subscribe_controller(
     }
 }
 
-#[tracing::instrument(
-    name = "insert_subscriber",
-    skip(db_connection_pool, new_subscriber)
-)]
+#[tracing::instrument(name = "insert_subscriber", skip(db_connection_pool, new_subscriber))]
 pub async fn insert_subscriber(
     db_connection_pool: &sqlx::PgPool,
     new_subscriber: &NewSubscriber,

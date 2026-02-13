@@ -1,27 +1,29 @@
-use std::time::Duration;
+use crate::domain::SubscriberEmail;
 use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
-use crate::domain::{SubscriberEmail};
+use std::time::Duration;
 
 pub struct EmailClient {
     http_client: Client,
     base_url: String,
     sender: SubscriberEmail,
-    authorization_token: SecretString
+    authorization_token: SecretString,
 }
 
 impl EmailClient {
-    pub fn new(base_url: String, sender: SubscriberEmail, authorization_token: SecretString, timeout: Duration) -> Self {
-        let http_client = Client::builder()
-            .timeout(timeout)
-            .build()
-            .unwrap();
+    pub fn new(
+        base_url: String,
+        sender: SubscriberEmail,
+        authorization_token: SecretString,
+        timeout: Duration,
+    ) -> Self {
+        let http_client = Client::builder().timeout(timeout).build().unwrap();
 
         Self {
             http_client,
             base_url,
             sender,
-            authorization_token
+            authorization_token,
         }
     }
 
@@ -30,7 +32,7 @@ impl EmailClient {
         recipient: SubscriberEmail,
         subject: &str,
         html_content: &str,
-        text_content: &str
+        text_content: &str,
     ) -> Result<(), reqwest::Error> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequestBody {
@@ -38,12 +40,15 @@ impl EmailClient {
             to: recipient.as_ref(),
             subject,
             html_body: html_content,
-            text_body: text_content
+            text_body: text_content,
         };
 
         self.http_client
             .post(url)
-            .header("X-Postmark-Server-Token", self.authorization_token.expose_secret())
+            .header(
+                "X-Postmark-Server-Token",
+                self.authorization_token.expose_secret(),
+            )
             .json(&request_body)
             .send()
             .await?
@@ -60,21 +65,21 @@ struct SendEmailRequestBody<'a> {
     to: &'a str,
     subject: &'a str,
     html_body: &'a str,
-    text_body: &'a str
+    text_body: &'a str,
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use crate::domain::SubscriberEmail;
+    use crate::email_client::EmailClient;
     use claims::{assert_err, assert_ok};
-    use fake::{Fake, Faker};
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
+    use fake::{Fake, Faker};
     use secrecy::SecretString;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use std::time::Duration;
     use wiremock::matchers::{any, header, method, path};
-    use crate::domain::SubscriberEmail;
-    use crate::email_client::{EmailClient};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     struct SendEmailRequestBodyMatcher {
         expected_body: serde_json::Value,
@@ -82,17 +87,14 @@ mod tests {
 
     impl SendEmailRequestBodyMatcher {
         pub fn create(expected_body: serde_json::Value) -> SendEmailRequestBodyMatcher {
-            SendEmailRequestBodyMatcher {
-                expected_body
-            }
+            SendEmailRequestBodyMatcher { expected_body }
         }
     }
 
     impl wiremock::Match for SendEmailRequestBodyMatcher {
         fn matches(&self, request: &wiremock::Request) -> bool {
-            let request_body_result: Result<serde_json::value::Value, _> = serde_json::from_slice(
-                &request.body
-            );
+            let request_body_result: Result<serde_json::value::Value, _> =
+                serde_json::from_slice(&request.body);
 
             if let Ok(request_body) = request_body_result {
                 request_body.get("From") == self.expected_body.get("From")
@@ -139,7 +141,8 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let result = email_client.send_email(subscriber_email, &subject, &content, &content)
+        let result = email_client
+            .send_email(subscriber_email, &subject, &content, &content)
             .await;
 
         assert_ok!(result);
@@ -190,8 +193,7 @@ mod tests {
         let subject: String = subject();
         let content: String = content();
 
-        let response = ResponseTemplate::new(200)
-            .set_delay(Duration::from_secs(11));
+        let response = ResponseTemplate::new(200).set_delay(Duration::from_secs(11));
 
         Mock::given(any())
             .respond_with(response)

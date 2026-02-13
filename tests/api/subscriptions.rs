@@ -1,19 +1,11 @@
 use crate::helpers::spawn_server;
 
 #[tokio::test]
-async fn subscribe_success() {
+async fn given_a_valid_request_then_it_subscribes() {
     let test_app = spawn_server().await;
-    let service_url = format!("{}/subscriptions", test_app.address);
-    let http_client = reqwest::Client::new();
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
-    let response = http_client
-        .post(service_url.clone())
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect(&format!("Unable to perform the request to {}", service_url));
+    let response = test_app.post_subscriptions(body.to_owned()).await;
 
     assert_eq!(response.status().as_u16(), 200);
 
@@ -29,8 +21,6 @@ async fn subscribe_success() {
 #[tokio::test]
 async fn given_missing_fields_then_subscribe_returns_400() {
     let test_app = spawn_server().await;
-    let service_url = format!("{}/subscriptions", test_app.address);
-    let client = reqwest::Client::new();
 
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
@@ -39,13 +29,7 @@ async fn given_missing_fields_then_subscribe_returns_400() {
     ];
 
     for (requets_body, error_message) in test_cases {
-        let response = client
-            .post(service_url.clone())
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(requets_body)
-            .send()
-            .await
-            .expect(&format!("Unable to perform the request to {}", service_url));
+        let response = test_app.post_subscriptions(requets_body.to_owned()).await;
 
         assert_eq!(
             response.status().as_u16(),
@@ -58,9 +42,8 @@ async fn given_missing_fields_then_subscribe_returns_400() {
 
 #[tokio::test]
 async fn given_fields_invalid_then_subscribe_returns_400() {
-    let app = spawn_server().await;
-    let service_url = format!("{}/subscriptions", app.address);
-    let http_client = reqwest::Client::new();
+    let test_app = spawn_server().await;
+
     let test_cases = vec![
         ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
         ("name=Ursula&email=", "empty email"),
@@ -68,13 +51,7 @@ async fn given_fields_invalid_then_subscribe_returns_400() {
     ];
 
     for (body, error_description) in test_cases {
-        let response = http_client
-            .post(service_url.clone())
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(body)
-            .send()
-            .await
-            .expect(&format!("Unable to perform the request to {}", service_url));
+        let response = test_app.post_subscriptions(body.to_owned()).await;
 
         assert_eq!(
             response.status().as_u16(),
