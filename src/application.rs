@@ -1,15 +1,19 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
+use crate::routes::confirm_subscription::confirm_subscription;
 use crate::routes::health_check::health_check_controller;
 use crate::routes::subscriptions::subscribe_controller;
 use actix_web::dev::Server;
 use actix_web::{App, HttpServer, web};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use std::net::TcpListener;
+use std::net::{SocketAddr, TcpListener};
 use tracing_actix_web::TracingLogger;
 
+pub struct ApplicationBaseUrl(pub String);
+
 pub struct Application {
+    socket_addr: SocketAddr,
     address: String,
     server: Server,
 }
@@ -40,9 +44,15 @@ impl Application {
         let tcp_listener = TcpListener::bind(&address)?;
         let address_assigned = tcp_listener.local_addr()?;
 
-        let server = Application::start_server(tcp_listener, connection_pool, email_client)?;
+        let server = Application::start_server(
+            tcp_listener,
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+        )?;
 
         Ok(Self {
+            socket_addr: address_assigned,
             address: address_assigned.to_string(),
             server,
         })
@@ -56,17 +66,24 @@ impl Application {
         tcp_listener: TcpListener,
         db_connection_pool: sqlx::PgPool,
         email_client: EmailClient,
+        base_url: String,
     ) -> Result<Server, std::io::Error> {
         let db_connection_pool_data = web::Data::new(db_connection_pool);
         let email_client_data = web::Data::new(email_client);
+        let application_base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
         let http_server = HttpServer::new(move || {
             App::new()
                 .wrap(TracingLogger::default())
                 .route("/health_check", web::get().to(health_check_controller))
                 .route("/subscriptions", web::post().to(subscribe_controller))
+                .route(
+                    "/subscriptions/confirm",
+                    web::get().to(confirm_subscription),
+                )
                 .app_data(db_connection_pool_data.clone())
                 .app_data(email_client_data.clone())
+                .app_data(application_base_url.clone())
         })
         .listen(tcp_listener)?
         .run();
@@ -80,5 +97,9 @@ impl Application {
 
     pub fn address(&self) -> &str {
         &self.address
+    }
+
+    pub fn socket_addr(&self) -> &SocketAddr {
+        &self.socket_addr
     }
 }
