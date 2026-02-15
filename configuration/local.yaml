@@ -2,3 +2,5 @@ application:
   host: 127.0.0.1
 database:
   require_ssl: false
+email_client:
+  base_url: https://webhook.site/bdf7f5c8-a1b2-4780-bb18-c4739988d074
