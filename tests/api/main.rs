@@ -1,6 +1,6 @@
 mod confirm_subscription;
 mod health_check;
 mod helpers;
-mod newsletter;
+mod newsletter_tests;
 mod subscriptions;
 mod utils;

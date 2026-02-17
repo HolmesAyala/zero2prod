@@ -1,20 +1,20 @@
 use crate::application::ApplicationBaseUrl;
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::email_client::EmailClient;
+use crate::utils::error_chain_fmt;
 use actix_web::http::StatusCode;
-use actix_web::{web, HttpResponse, ResponseError};
+use actix_web::{HttpResponse, ResponseError, web};
 use anyhow::Context;
 use chrono::Utc;
 use rand::distr::{Alphanumeric, SampleString};
 use sqlx::{Executor, Postgres, Transaction};
-use std::error::Error;
 use std::fmt::{Debug, Display};
 use uuid::Uuid;
 
 #[derive(thiserror::Error)]
 pub struct StoreTokenError {
     #[source]
-    source: sqlx::Error
+    source: sqlx::Error,
 }
 
 impl Display for StoreTokenError {
@@ -30,16 +30,6 @@ impl Debug for StoreTokenError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         error_chain_fmt(self, f)
     }
-}
-
-fn error_chain_fmt(error: &impl Error, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    writeln!(f, "{}\n", error)?;
-    let mut current = error.source();
-    while let Some(cause) = current {
-        writeln!(f, "Caused by:\n\t{}", cause)?;
-        current = cause.source();
-    }
-    Ok(())
 }
 
 #[derive(thiserror::Error)]
@@ -181,7 +171,7 @@ async fn send_confirmation_email(
 
     email_client
         .send_email(
-            new_subscriber.email,
+            &new_subscriber.email,
             "Welcome!",
             &html_content,
             &text_content,
