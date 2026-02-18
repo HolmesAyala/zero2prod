@@ -21,7 +21,7 @@ async fn then_it_should_not_send_newsletter_to_unconfirmed_subscribers() {
         }
     });
 
-    let response = test_app.post_newsletter(newsletter_request_body).await;
+    let response = test_app.post_newsletters(newsletter_request_body).await;
 
     assert_eq!(response.status(), reqwest::StatusCode::OK);
 }
@@ -47,7 +47,7 @@ async fn then_it_should_send_newsletter_to_confirmed_subscribers() {
         }
     });
 
-    let response = test_app.post_newsletter(newsletter_request_body).await;
+    let response = test_app.post_newsletters(newsletter_request_body).await;
 
     assert_eq!(response.status(), reqwest::StatusCode::OK);
 }
@@ -75,7 +75,7 @@ async fn given_an_invalid_request_body_then_it_should_returns_400() {
     ];
 
     for test_case in test_cases {
-        let response = test_app.post_newsletter(test_case.0).await;
+        let response = test_app.post_newsletters(test_case.0).await;
 
         assert_eq!(
             response.status(),
@@ -84,6 +84,24 @@ async fn given_an_invalid_request_body_then_it_should_returns_400() {
             test_case.1
         );
     }
+}
+
+#[tokio::test]
+async fn given_a_missing_authorization_header_then_it_should_returns_401() {
+    let test_app = spawn_server().await;
+
+    let response = reqwest::Client::new()
+        .post(format!("{}/newsletters", &test_app.address))
+        .json(&serde_json::json!({ "title": "Title", "content": {"text": "Content", "html": "<p>Content</p>"} }))
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert_eq!(reqwest::StatusCode::UNAUTHORIZED, response.status());
+    assert_eq!(
+        r#"Basic realm="publish_newsletter""#,
+        response.headers()["WWW-Authenticate"]
+    )
 }
 
 async fn create_subscription_request(test_app: &TestApp) -> ConfirmationLinks {
