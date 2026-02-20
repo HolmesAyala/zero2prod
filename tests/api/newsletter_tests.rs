@@ -1,4 +1,5 @@
-use crate::helpers::{ConfirmationLinks, TestApp, spawn_server};
+use crate::helpers::{spawn_server, ConfirmationLinks, TestApp};
+use uuid::Uuid;
 use wiremock::matchers::{any, method, path};
 use wiremock::{Mock, ResponseTemplate};
 
@@ -96,6 +97,56 @@ async fn given_a_missing_authorization_header_then_it_should_returns_401() {
         .send()
         .await
         .expect("Failed to send request");
+
+    assert_eq!(reqwest::StatusCode::UNAUTHORIZED, response.status());
+    assert_eq!(
+        r#"Basic realm="publish_newsletter""#,
+        response.headers()["WWW-Authenticate"]
+    )
+}
+
+#[tokio::test]
+async fn given_an_unknown_user_then_it_should_returns_401() {
+    let test_app = spawn_server().await;
+
+    let username = Uuid::new_v4().to_string();
+    let password = Uuid::new_v4().to_string();
+
+    let response = reqwest::Client::new()
+        .post(format!("{}/newsletters", &test_app.address))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!(
+            { "title": "Title", "content": {"text": "Content", "html": "<p>Content</p>"} }
+        ))
+        .send()
+        .await
+        .expect("Failed to execute request.");
+
+    assert_eq!(reqwest::StatusCode::UNAUTHORIZED, response.status());
+    assert_eq!(
+        r#"Basic realm="publish_newsletter""#,
+        response.headers()["WWW-Authenticate"]
+    )
+}
+
+#[tokio::test]
+async fn given_a_wrong_password_then_it_should_returns_401() {
+    let test_app = spawn_server().await;
+
+    let username = &test_app.test_user.username;
+    let password = Uuid::new_v4().to_string();
+
+    assert_ne!(test_app.test_user.password, password);
+
+    let response = reqwest::Client::new()
+        .post(format!("{}/newsletters", &test_app.address))
+        .basic_auth(username, Some(password))
+        .json(&serde_json::json!(
+            { "title": "Title", "content": {"text": "Content", "html": "<p>Content</p>"} }
+        ))
+        .send()
+        .await
+        .expect("Failed to execute request.");
 
     assert_eq!(reqwest::StatusCode::UNAUTHORIZED, response.status());
     assert_eq!(

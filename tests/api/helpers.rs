@@ -1,4 +1,7 @@
 use crate::utils::get_first_link;
+use argon2::password_hash::rand_core::OsRng;
+use argon2::password_hash::SaltString;
+use argon2::{Algorithm, Argon2, Params, PasswordHasher, Version};
 use once_cell::sync::Lazy;
 use reqwest::Url;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
@@ -9,9 +12,48 @@ use zero2prod::application::Application;
 use zero2prod::configuration::get_configuration;
 use zero2prod::{configuration, telemetry};
 
+pub struct TestUser {
+    pub user_id: Uuid,
+    pub username: String,
+    pub password: String,
+}
+
+impl TestUser {
+    pub fn generate() -> Self {
+        Self {
+            user_id: Uuid::new_v4(),
+            username: Uuid::new_v4().to_string(),
+            password: "mimi".to_owned(),
+        }
+    }
+
+    async fn store(&self, db_pool: &PgPool) {
+        let salt: SaltString = SaltString::generate(&mut OsRng);
+
+        let password_hash = Argon2::new(
+            Algorithm::Argon2id,
+            Version::V0x13,
+            Params::new(15_000, 2, 1, None).unwrap(),
+        )
+        .hash_password(self.password.as_bytes(), &salt)
+        .unwrap()
+        .to_string();
+
+        sqlx::query!(
+            "INSERT INTO users (user_id, username, password_hash) VALUES ($1, $2, $3)",
+            self.user_id,
+            self.username,
+            password_hash,
+        )
+        .execute(db_pool)
+        .await
+        .expect("Failed to insert test user");
+    }
+}
+
 pub struct ConfirmationLinks {
-    pub html: reqwest::Url,
-    pub plain_text: reqwest::Url,
+    pub html: Url,
+    pub plain_text: Url,
 }
 
 pub struct TestApp {
@@ -19,6 +61,7 @@ pub struct TestApp {
     pub address: String,
     pub db_connection_pool: PgPool,
     pub email_server: MockServer,
+    pub test_user: TestUser,
 }
 
 impl TestApp {
@@ -33,11 +76,11 @@ impl TestApp {
     }
 
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        let (username, password) = self.get_test_user().await;
+        let test_user = &self.test_user;
 
         reqwest::Client::new()
             .post(format!("{}/newsletters", &self.address))
-            .basic_auth(username, Some(password))
+            .basic_auth(&test_user.username, Some(&test_user.password))
             .json(&body)
             .send()
             .await
@@ -70,15 +113,6 @@ impl TestApp {
             html: html_confirmation_url,
             plain_text: plain_confirmation_url,
         }
-    }
-
-    pub async fn get_test_user(&self) -> (String, String) {
-        let row = sqlx::query!("SELECT username, password FROM users LIMIT 1")
-            .fetch_one(&self.db_connection_pool)
-            .await
-            .expect("Failed to fetch test user");
-
-        (row.username, row.password)
     }
 }
 
@@ -125,13 +159,15 @@ pub async fn spawn_server() -> TestApp {
 
     let db_connection_pool = Application::get_connection_pool(&configuration.database);
 
-    add_test_user(&db_connection_pool).await;
+    let test_user = TestUser::generate();
+    test_user.store(&db_connection_pool).await;
 
     TestApp {
         socket_address: socket_addr,
         address: http_address,
         db_connection_pool,
         email_server,
+        test_user,
     }
 }
 
@@ -155,16 +191,4 @@ pub async fn configure_database(database_settings: &configuration::DatabaseSetti
         .expect("Failed to migrate the database");
 
     db_connection_pool
-}
-
-async fn add_test_user(db_connection_pool: &PgPool) {
-    sqlx::query!(
-        "INSERT INTO users (user_id, username, password) VALUES ($1, $2, $3)",
-        Uuid::new_v4(),
-        Uuid::new_v4().to_string(),
-        Uuid::new_v4().to_string(),
-    )
-    .execute(db_connection_pool)
-    .await
-    .expect("Failed to create test user");
 }
