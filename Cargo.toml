@@ -13,6 +13,7 @@ name = "zero2prod"
 
 [dependencies]
 actix-web = "4.12.1"
+actix-web-flash-messages = { version = "0.5.0", features = ["cookies"] }
 anyhow = "1.0.101"
 argon2 = { version = "0.5.3", features = ["std"] }
 base64 = "0.22.1"
@@ -40,18 +41,18 @@ validator = "0.20.0"
 version = "0.8.6"
 default-features = false
 features = [
-"runtime-tokio-rustls",
-"macros",
-"postgres",
-"uuid",
-"chrono",
-"migrate"
+    "runtime-tokio-rustls",
+    "macros",
+    "postgres",
+    "uuid",
+    "chrono",
+    "migrate"
 ]
 
 [dependencies.reqwest]
 version = "0.11.2"
 default-features = false
-features = ["json", "rustls-tls"]
+features = ["json", "rustls-tls", "cookies"]
 
 [dev-dependencies]
 fake = "~2.3"

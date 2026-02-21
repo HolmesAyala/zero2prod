@@ -2,12 +2,19 @@ use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
 use crate::routes::confirm_subscription::confirm_subscription;
 use crate::routes::health_check::health_check_controller;
+use crate::routes::home::home;
+use crate::routes::login::get::login_form;
+use crate::routes::login::post::login;
 use crate::routes::newsletters::publish_newsletter;
 use crate::routes::subscriptions::subscribe_controller;
+use actix_web::cookie::Key;
 use actix_web::dev::Server;
-use actix_web::{App, HttpServer, web};
-use sqlx::PgPool;
+use actix_web::{web, App, HttpServer};
+use actix_web_flash_messages::storage::CookieMessageStore;
+use actix_web_flash_messages::FlashMessagesFramework;
+use secrecy::{ExposeSecret, SecretString};
 use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
 use std::net::{SocketAddr, TcpListener};
 use tracing_actix_web::TracingLogger;
 
@@ -50,6 +57,7 @@ impl Application {
             connection_pool,
             email_client,
             configuration.application.base_url,
+            configuration.application.hmac_secret,
         )?;
 
         Ok(Self {
@@ -65,18 +73,27 @@ impl Application {
 
     fn start_server(
         tcp_listener: TcpListener,
-        db_connection_pool: sqlx::PgPool,
+        db_connection_pool: PgPool,
         email_client: EmailClient,
         base_url: String,
+        hmac_secret: SecretString,
     ) -> Result<Server, std::io::Error> {
         let db_connection_pool_data = web::Data::new(db_connection_pool);
         let email_client_data = web::Data::new(email_client);
         let application_base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
+        let message_store =
+            CookieMessageStore::builder(Key::from(hmac_secret.expose_secret().as_bytes())).build();
+        let message_framework = FlashMessagesFramework::builder(message_store).build();
+
         let http_server = HttpServer::new(move || {
             App::new()
+                .wrap(message_framework.clone())
                 .wrap(TracingLogger::default())
+                .route("/", web::get().to(home))
                 .route("/health_check", web::get().to(health_check_controller))
+                .route("/login", web::get().to(login_form))
+                .route("/login", web::post().to(login))
                 .route("/subscriptions", web::post().to(subscribe_controller))
                 .route(
                     "/subscriptions/confirm",

@@ -7,3 +7,5 @@ pub mod domain;
 pub mod email_client;
 
 pub mod utils;
+
+pub mod authentication;

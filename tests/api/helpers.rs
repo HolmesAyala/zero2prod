@@ -62,11 +62,12 @@ pub struct TestApp {
     pub db_connection_pool: PgPool,
     pub email_server: MockServer,
     pub test_user: TestUser,
+    pub http_client: reqwest::Client,
 }
 
 impl TestApp {
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
-        reqwest::Client::new()
+        self.http_client
             .post(format!("{}/subscriptions", &self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
@@ -78,7 +79,7 @@ impl TestApp {
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
         let test_user = &self.test_user;
 
-        reqwest::Client::new()
+        self.http_client
             .post(format!("{}/newsletters", &self.address))
             .basic_auth(&test_user.username, Some(&test_user.password))
             .json(&body)
@@ -113,6 +114,34 @@ impl TestApp {
             html: html_confirmation_url,
             plain_text: plain_confirmation_url,
         }
+    }
+
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(format!("{}/login", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_login_html(&self) -> String {
+        self.http_client
+            .get(format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+            .text()
+            .await
+            .expect("Failed to parse html response body.")
+    }
+
+    pub fn assert_is_redirect_to(&self, response: &reqwest::Response, location: &str) {
+        assert_eq!(response.status(), reqwest::StatusCode::SEE_OTHER);
+        assert_eq!(response.headers().get("Location").unwrap(), location);
     }
 }
 
@@ -162,12 +191,19 @@ pub async fn spawn_server() -> TestApp {
     let test_user = TestUser::generate();
     test_user.store(&db_connection_pool).await;
 
+    let http_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
+
     TestApp {
         socket_address: socket_addr,
         address: http_address,
         db_connection_pool,
         email_server,
         test_user,
+        http_client,
     }
 }
 

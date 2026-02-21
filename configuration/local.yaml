@@ -1,5 +1,6 @@
 application:
   host: 127.0.0.1
+  hmac_secret: mock_secret_value_with_a_long_mock_value_containing_a_lot_of_characters
 database:
   require_ssl: false
 email_client:
