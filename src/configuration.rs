@@ -2,8 +2,8 @@ use crate::domain::SubscriberEmail;
 use secrecy::{ExposeSecret, SecretString};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::{
-    postgres::{PgConnectOptions, PgSslMode},
     ConnectOptions,
+    postgres::{PgConnectOptions, PgSslMode},
 };
 use std::time::Duration;
 
@@ -12,6 +12,7 @@ pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
     pub email_client: EmailClientSettings,
+    pub redis_uri: SecretString,
 }
 
 #[derive(Clone, serde::Deserialize)]

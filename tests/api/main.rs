@@ -1,3 +1,5 @@
+pub mod admin_dashboard_tests;
+pub mod change_password;
 mod confirm_subscription;
 mod health_check;
 mod helpers;

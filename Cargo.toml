@@ -12,6 +12,7 @@ path = "src/main.rs"
 name = "zero2prod"
 
 [dependencies]
+actix-session = { version = "0.11.0", features = ["redis-session-rustls"] }
 actix-web = "4.12.1"
 actix-web-flash-messages = { version = "0.5.0", features = ["cookies"] }
 anyhow = "1.0.101"
@@ -34,8 +35,10 @@ tracing-bunyan-formatter = "0.3.10"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.22", features = ["registry", "env-filter"] }
 unicode-segmentation = "1.12.0"
-uuid = { version = "1.20.0", features = ["v4"] }
+uuid = { version = "1.20.0", features = ["v4", "serde"] }
 validator = "0.20.0"
+log = "0.4.29"
+serde_json = "1"
 
 [dependencies.sqlx]
 version = "0.8.6"
@@ -59,4 +62,3 @@ fake = "~2.3"
 quickcheck = "0.9"
 quickcheck_macros = "0.9"
 wiremock = "0.6.5"
-serde_json = "1"

@@ -1,5 +1,8 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
+use crate::routes::admin::dashboard::admin_dashboard;
+use crate::routes::admin::password::get::change_password_form;
+use crate::routes::admin::password::post::change_password;
 use crate::routes::confirm_subscription::confirm_subscription;
 use crate::routes::health_check::health_check_controller;
 use crate::routes::home::home;
@@ -7,6 +10,8 @@ use crate::routes::login::get::login_form;
 use crate::routes::login::post::login;
 use crate::routes::newsletters::publish_newsletter;
 use crate::routes::subscriptions::subscribe_controller;
+use actix_session::storage::RedisSessionStore;
+use actix_session::SessionMiddleware;
 use actix_web::cookie::Key;
 use actix_web::dev::Server;
 use actix_web::{web, App, HttpServer};
@@ -27,7 +32,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub async fn build(configuration: Settings) -> Result<Self, std::io::Error> {
+    pub async fn build(configuration: Settings) -> Result<Self, anyhow::Error> {
         let connection_pool = Application::get_connection_pool(&configuration.database);
 
         let sender_email = configuration
@@ -58,7 +63,9 @@ impl Application {
             email_client,
             configuration.application.base_url,
             configuration.application.hmac_secret,
-        )?;
+            configuration.redis_uri,
+        )
+        .await?;
 
         Ok(Self {
             socket_addr: address_assigned,
@@ -71,13 +78,14 @@ impl Application {
         PgPoolOptions::new().connect_lazy_with(configuration.with_db())
     }
 
-    fn start_server(
+    async fn start_server(
         tcp_listener: TcpListener,
         db_connection_pool: PgPool,
         email_client: EmailClient,
         base_url: String,
         hmac_secret: SecretString,
-    ) -> Result<Server, std::io::Error> {
+        redis_uri: SecretString,
+    ) -> Result<Server, anyhow::Error> {
         let db_connection_pool_data = web::Data::new(db_connection_pool);
         let email_client_data = web::Data::new(email_client);
         let application_base_url = web::Data::new(ApplicationBaseUrl(base_url));
@@ -86,9 +94,16 @@ impl Application {
             CookieMessageStore::builder(Key::from(hmac_secret.expose_secret().as_bytes())).build();
         let message_framework = FlashMessagesFramework::builder(message_store).build();
 
+        let secret_key = Key::from(hmac_secret.expose_secret().as_bytes());
+        let redis_store = RedisSessionStore::new(redis_uri.expose_secret()).await?;
+
         let http_server = HttpServer::new(move || {
             App::new()
                 .wrap(message_framework.clone())
+                .wrap(SessionMiddleware::new(
+                    redis_store.clone(),
+                    secret_key.clone(),
+                ))
                 .wrap(TracingLogger::default())
                 .route("/", web::get().to(home))
                 .route("/health_check", web::get().to(health_check_controller))
@@ -100,6 +115,9 @@ impl Application {
                     web::get().to(confirm_subscription),
                 )
                 .route("/newsletters", web::post().to(publish_newsletter))
+                .route("/admin/dashboard", web::get().to(admin_dashboard))
+                .route("/admin/password", web::get().to(change_password_form))
+                .route("/admin/password", web::post().to(change_password))
                 .app_data(db_connection_pool_data.clone())
                 .app_data(email_client_data.clone())
                 .app_data(application_base_url.clone())

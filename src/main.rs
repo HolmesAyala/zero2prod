@@ -5,7 +5,7 @@ use zero2prod::{
 };
 
 #[tokio::main]
-async fn main() -> Result<(), std::io::Error> {
+async fn main() -> anyhow::Result<()> {
     let tracing_subscriber =
         get_tracing_subscriber("zero2prod".into(), "info".into(), std::io::stdout);
     init_tracing_subscriber(tracing_subscriber);

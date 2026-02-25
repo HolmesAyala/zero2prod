@@ -23,7 +23,7 @@ impl TestUser {
         Self {
             user_id: Uuid::new_v4(),
             username: Uuid::new_v4().to_string(),
-            password: "mimi".to_owned(),
+            password: Uuid::new_v4().to_string(),
         }
     }
 
@@ -137,6 +137,42 @@ impl TestApp {
             .text()
             .await
             .expect("Failed to parse html response body.")
+    }
+
+    pub async fn get_admin_dashboard_html(&self) -> String {
+        self.get_admin_dashboard()
+            .await
+            .text()
+            .await
+            .expect("Failed to parse html response body response.")
+    }
+
+    pub async fn get_admin_dashboard(&self) -> reqwest::Response {
+        self.http_client
+            .get(format!("{}/admin/dashboard", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn get_change_password(&self) -> reqwest::Response {
+        self.http_client
+            .get(format!("{}/admin/password", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_change_password<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.http_client
+            .post(format!("{}/admin/password", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
     }
 
     pub fn assert_is_redirect_to(&self, response: &reqwest::Response, location: &str) {
